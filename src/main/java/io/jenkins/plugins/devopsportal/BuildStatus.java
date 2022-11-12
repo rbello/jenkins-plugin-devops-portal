@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
+import hudson.model.Result;
 import hudson.model.Run;
 import hudson.util.CopyOnWriteList;
 import io.jenkins.plugins.devopsportal.utils.JenkinsUtils;
@@ -19,6 +20,7 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * A persistent record of the progress of build activities for a software release.
@@ -178,6 +180,13 @@ public class BuildStatus implements Describable<BuildStatus>, Serializable {
         activitiesStatus.put(activity, status);
     }
 
+    public void setActivityStatus(@NonNull String activity, @NonNull String status) {
+        activitiesStatus.put(
+                BuildActivities.valueOf(activity),
+                BuildActivityStatus.valueOf(status)
+        );
+    }
+
     public BuildActivityStatus getActivityStatus(BuildActivities activity) {
         return activitiesStatus.getOrDefault(activity, BuildActivityStatus.getDefault());
     }
@@ -192,6 +201,12 @@ public class BuildStatus implements Describable<BuildStatus>, Serializable {
             return job.getBuildStatusIconClassName();
         }
         return "icon-disabled";
+    }
+
+    public void setBuildResult(Result result) {
+        if (getActivityStatus(BuildActivities.BUILD) != BuildActivityStatus.PENDING) {
+            setActivityStatus(BuildActivities.BUILD, BuildActivityStatus.fromResult(result));
+        }
     }
 
     @Extension
@@ -237,6 +252,21 @@ public class BuildStatus implements Describable<BuildStatus>, Serializable {
 
         public boolean isApplicationExists(String applicationName) {
             return getBuildStatus().stream().anyMatch(item -> applicationName.equals(item.getApplicationName()));
+        }
+
+        public void update(String jobName, int number, Consumer<BuildStatus> updater) {
+            List<BuildStatus> status = buildStatus
+                    .getView()
+                    .stream()
+                    .filter(item -> jobName.equals(item.getBuildJob()))
+                    .filter(item -> String.valueOf(number).equals(item.getBuildNumber()))
+                    .collect(Collectors.toList());
+            for (BuildStatus record : status) {
+                updater.accept(record);
+            }
+            if (!status.isEmpty()) {
+                save();
+            }
         }
 
     }

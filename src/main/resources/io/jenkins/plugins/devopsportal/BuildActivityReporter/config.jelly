@@ -11,7 +11,7 @@
         <f:select>
         </f:select>
     </f:entry>
-    <f:entry title="${%Status_Label}" field="status" description="${%Status_Desc}">
+    <f:entry title="${%Status_Label}" field="status">
         <f:select>
         </f:select>
     </f:entry>

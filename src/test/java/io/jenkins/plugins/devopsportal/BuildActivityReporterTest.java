@@ -17,15 +17,15 @@ public class BuildActivityReporterTest {
 
     final String applicationName = "My Application";
     final String applicationVersion = "1.0.3";
-    final BuildActivities activity = BuildActivities.BUILD;
+    final String activity = "BUILD";
 
     @Test
     public void testConfigRoundtrip() throws Exception {
         FreeStyleProject project = jenkins.createFreeStyleProject();
-        project.getBuildersList().add(new BuildActivityReporter(applicationName, applicationVersion, activity));
+        project.getBuildersList().add(new BuildActivityReporter(applicationName, applicationVersion, activity, "DONE"));
         project = jenkins.configRoundtrip(project);
         jenkins.assertEqualDataBoundBeans(
-            new BuildActivityReporter(applicationName, applicationVersion, activity),
+            new BuildActivityReporter(applicationName, applicationVersion, activity, "DONE"),
             project.getBuildersList().get(0)
         );
     }
@@ -33,35 +33,22 @@ public class BuildActivityReporterTest {
     @Test
     public void testConfigRoundtripStatus() throws Exception {
         FreeStyleProject project = jenkins.createFreeStyleProject();
-        BuildActivityReporter builder = new BuildActivityReporter(applicationName, applicationVersion, activity);
-        builder.setStatus(BuildActivityStatus.FAIL);
+        BuildActivityReporter builder = new BuildActivityReporter(applicationName, applicationVersion, activity, "FAIL");
         project.getBuildersList().add(builder);
         project = jenkins.configRoundtrip(project);
 
-        BuildActivityReporter lhs = new BuildActivityReporter(applicationName, applicationVersion, activity);
-        lhs.setStatus(BuildActivityStatus.FAIL);
+        BuildActivityReporter lhs = new BuildActivityReporter(applicationName, applicationVersion, activity, "FAIL");
         jenkins.assertEqualDataBoundBeans(lhs, project.getBuildersList().get(0));
-    }
-
-    @Test
-    public void testBuildStatusAuto() throws Exception {
-        FreeStyleProject project = jenkins.createFreeStyleProject();
-        BuildActivityReporter builder = new BuildActivityReporter(applicationName, applicationVersion, activity);
-        project.getBuildersList().add(builder);
-
-        FreeStyleBuild build = jenkins.buildAndAssertSuccess(project);
-        jenkins.assertLogContains("OK TODO", build);
     }
 
     @Test
     public void testBuildStatusManual() throws Exception {
         FreeStyleProject project = jenkins.createFreeStyleProject();
-        BuildActivityReporter builder = new BuildActivityReporter(applicationName, applicationVersion, activity);
-        builder.setStatus(BuildActivityStatus.UNSTABLE);
+        BuildActivityReporter builder = new BuildActivityReporter(applicationName, applicationVersion, "UT", "UNSTABLE");
         project.getBuildersList().add(builder);
 
         FreeStyleBuild build = jenkins.buildAndAssertSuccess(project);
-        jenkins.assertLogContains("OK TODO", build);
+        jenkins.assertLogContains("Report build activity 'UT' to status 'UNSTABLE' for application 'My Application' version 1.0.3", build);
     }
 
     @Test
@@ -71,7 +58,9 @@ public class BuildActivityReporterTest {
         WorkflowJob job = jenkins.createProject(WorkflowJob.class, "test-scripted-pipeline");
         String pipelineScript
                 = "node {\n"
-                + "  reportBuildActivity '" + applicationName + "', '" + applicationVersion + "', '" + activity + "'\n"
+                //+ "  reportBuildActivity(applicationName: '" + applicationName + "', applicationVersion: '"
+                //+ applicationVersion + "', activity: '" + activity + "', status: 'DONE')\n"
+                + "  reportBuildActivity '" + applicationName + "', '" + applicationVersion + "', '" + activity + "', 'DONE'\n"
                 + "}";
         job.setDefinition(new CpsFlowDefinition(pipelineScript, true));
         WorkflowRun completedBuild = jenkins.assertBuildStatusSuccess(job.scheduleBuild2(0));

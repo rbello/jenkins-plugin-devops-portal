@@ -27,4 +27,14 @@ public enum BuildActivities {
         return label;
     }
 
+    public static boolean exists(String activity) {
+        try {
+            BuildActivities.valueOf(activity);
+            return true;
+        }
+        catch (Exception ex) {
+            return false;
+        }
+    }
+
 }

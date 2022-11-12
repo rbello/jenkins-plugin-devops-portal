@@ -30,7 +30,7 @@ Dashboard :
 
 ![xxxx](.doc/RunOperationReporter.png)
 
-### Report run operation with pipeline script
+### Report run operation with pipeline script (DSL)
 
 ```
 reportRunOperation(
@@ -60,7 +60,7 @@ Dashboard :
 
 ![xxxx](.doc/BuildActivityReporter.png)
 
-### Report build activity with pipeline script
+### Report build activity with pipeline script (DSL)
 
 Pipeline script :
 
@@ -69,7 +69,7 @@ reportBuildActivity(
     applicationName: string,    // Name of application built
     applicationVersion: string, // Version of application built
     activity: string,           // Activity code
-    status?: string             // Optional: Status code
+    status: string              // Status code
 )
 ```
 
@@ -84,7 +84,7 @@ Activity codes :
 
 Status codes :
 
-- `PENDING` Pending
-- `DONE` Done
+- `PENDING` Pending (default)
+- `DONE` Done with success
 - `UNSTABLE` Unstable
-- `FAIL` Fail
+- `FAIL` Failure

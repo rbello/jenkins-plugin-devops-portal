@@ -5,14 +5,13 @@ import hudson.Launcher;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
+import hudson.model.*;
 import hudson.util.FormValidation;
-import hudson.model.AbstractProject;
-import hudson.model.Run;
-import hudson.model.TaskListener;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
+import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
@@ -30,14 +29,15 @@ public class BuildActivityReporter extends Builder implements SimpleBuildStep {
 
     private String applicationName;
     private String applicationVersion;
-    private BuildActivities activity;
-    private BuildActivityStatus status;
+    private String activity;
+    private String status;
 
     @DataBoundConstructor
-    public BuildActivityReporter(String applicationName, String applicationVersion, BuildActivities activity) {
+    public BuildActivityReporter(String applicationName, String applicationVersion, String activity, String status) {
         this.applicationName = applicationName;
         this.applicationVersion = applicationVersion;
-        this.activity = activity;
+        setActivity(activity);
+        setStatus(status);
     }
 
     public String getApplicationName() {
@@ -59,61 +59,82 @@ public class BuildActivityReporter extends Builder implements SimpleBuildStep {
     }
 
     public BuildActivities getActivity() {
-        return activity;
+        return BuildActivities.valueOf(activity);
     }
 
     @DataBoundSetter
-    public void setActivity(BuildActivities activity) {
+    public void setActivity(String activity) {
         this.activity = activity;
     }
 
     public BuildActivityStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(BuildActivityStatus status) {
-        this.status = status;
+        return BuildActivityStatus.valueOf(status);
     }
 
     @DataBoundSetter
     public void setStatus(String status) {
-        this.status = (status == null || status.isEmpty()) ? null : BuildActivityStatus.valueOf(status);
+        this.status = status;
     }
 
     @Override
     public void perform(@NonNull Run<?, ?> run, @NonNull FilePath workspace, @NonNull EnvVars env,
                         @NonNull Launcher launcher, @NonNull TaskListener listener) throws InterruptedException, IOException {
 
+        if (StringUtils.trimToNull(applicationName) == null) {
+            listener.getLogger().println("Unable to report build activity: application name is missing");
+            return;
+        }
+        if (StringUtils.trimToNull(applicationVersion) == null) {
+            listener.getLogger().println("Unable to report build activity: application version is missing");
+            return;
+        }
+        if (activity == null) {
+            listener.getLogger().println("Unable to report build activity: activity is missing");
+            return;
+        }
+        if (!BuildActivities.exists(activity)) {
+            listener.getLogger().println("Unable to report build activity: activity is invalid");
+            return;
+        }
+        if (status == null) {
+            listener.getLogger().println("Unable to report build activity: status is missing");
+            return;
+        }
+        if (!BuildActivityStatus.exists(status)) {
+            listener.getLogger().println("Unable to report build activity: status is invalid");
+            return;
+        }
+
+        listener.getLogger().printf(
+                "Report build activity '%s' to status '%s' for application '%s' version %s%n",
+                activity,
+                status,
+                applicationName,
+                applicationVersion
+        );
+
+        if (getBuildStatusDescriptor() == null) {
+            return;
+        }
+
         getBuildStatusDescriptor().update(applicationName, applicationVersion, record -> {
             record.setBuildJob(env.get("JOB_NAME"));
             record.setBuildNumber(env.get("BUILD_NUMBER"));
-            record.setBuildURL(env.get("RUN_DISPLAY_URL")); // TODO Verify this URL
+            record.setBuildURL(env.get("RUN_DISPLAY_URL"));
             record.setBuildBranch("");// TODO
             record.setBuildCommit("");//TODO
-            if (status != null) {
-                // Manually
-                record.setActivityStatus(activity, status);
-            }
-            else {
-                // Automatic
-                record.setActivityStatus(activity, getActivityStatus(activity, run, env));
-            }
-            listener.getLogger().printf(
-                    "Report build activity '%s' to state '%s' for application '%s' version %s%n",
-                    activity,
-                    record.getActivityStatus(activity),
-                    record.getApplicationName(),
-                    record.getApplicationVersion()
-            );
+            record.setActivityStatus(activity, status);
         });
-    }
 
-    private BuildActivityStatus getActivityStatus(BuildActivities activity, Run<?,?> run, EnvVars env) {
-        return BuildActivityStatus.PENDING; // TODO
     }
 
     public BuildStatus.DescriptorImpl getBuildStatusDescriptor() {
         return Jenkins.get().getDescriptorByType(BuildStatus.DescriptorImpl.class);
+    }
+
+    @Override
+    public Descriptor<Builder> getDescriptor() {
+        return Jenkins.get().getDescriptorByType(BuildActivityReporter.DescriptorImpl.class);
     }
 
     @Symbol("reportBuildActivity")
@@ -144,7 +165,6 @@ public class BuildActivityReporter extends Builder implements SimpleBuildStep {
 
         public ListBoxModel doFillStatusItems() {
             ListBoxModel list = new ListBoxModel();
-            list.add("", "");
             for (BuildActivityStatus status : BuildActivityStatus.values()) {
                 list.add(status.getLabel(), status.name());
             }
@@ -155,7 +175,6 @@ public class BuildActivityReporter extends Builder implements SimpleBuildStep {
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             return true;
         }
-
 
         @NonNull
         @Override
